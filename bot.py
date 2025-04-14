@@ -1,23 +1,28 @@
+
 import os
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 from flask import Flask, request
 
 # Flask app
-app = Flask(__name__)
+flask_app = Flask(__name__)
 
-# Налаштування Telegram
-BOT_TOKEN = os.getenv("BOT_TOKEN", "тут_токен_свій_встав")
+# Telegram settings
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8041256909:AAGjruzEE61q_H4R5zAwpTf53Peit37lqEg")
 CHANNEL_ID = "UCcBeq64BydUvdA-kZsITNlg"
 TIKTOK_USERNAME = "top_gamer_qq"
 TELEGRAM_CHANNEL = "@testbotika12"
 
-# Telegram application
+# Telegram Application
 telegram_app = Application.builder().token(BOT_TOKEN).build()
 
-# --- ФУНКЦІЇ ПЕРЕВІРКИ СТРІМІВ ---
-
+# Check YouTube stream
 async def check_youtube():
     try:
         headers = {
@@ -30,11 +35,11 @@ async def check_youtube():
             title_end = response.text.find("</title>")
             title = response.text[title_start:title_end].replace(" - YouTube", "")
             return f"🔴 YouTube: {title}\n{url}"
-        return None
     except Exception as e:
-        print(f"Error checking YouTube: {str(e)}")
-        return None
+        print(f"YouTube check error: {str(e)}")
+    return None
 
+# Check TikTok stream
 async def check_tiktok():
     try:
         headers = {
@@ -44,24 +49,19 @@ async def check_tiktok():
         response = requests.get(url, headers=headers, timeout=3)
         if response.status_code == 200 and '"isLive":true' in response.text:
             return f"🎥 TikTok: {url}"
-        return None
     except Exception as e:
-        print(f"Error checking TikTok: {str(e)}")
-        return None
+        print(f"TikTok check error: {str(e)}")
+    return None
 
-# --- КОМАНДИ ТА ОБРОБНИКИ ---
-
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_message = (
-        "🎥 Привіт! Я бот для перевірки стрімів на YouTube та TikTok! 🚀\n"
-        "Натисни кнопку нижче, щоб дізнатися, чи є активні стріми:"
+    keyboard = [[InlineKeyboardButton("Перевірити стріми", callback_data="check_streams")]]
+    markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "🎥 Привіт! Я бот для перевірки стрімів на YouTube та TikTok!", reply_markup=markup
     )
-    keyboard = [
-        [InlineKeyboardButton("Перевірити стріми", callback_data="check_streams")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
 
+# Button press
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -69,47 +69,48 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "check_streams":
         await query.message.reply_text("Перевіряю стріми, зачекай...")
 
-        live_streams = []
-        youtube_stream = await check_youtube()
-        if youtube_stream:
-            live_streams.append(youtube_stream)
+        results = []
+        yt = await check_youtube()
+        tt = await check_tiktok()
+        if yt:
+            results.append(yt)
+        if tt:
+            results.append(tt)
 
-        tiktok_stream = await check_tiktok()
-        if tiktok_stream:
-            live_streams.append(tiktok_stream)
-
-        if live_streams:
-            stream_message = "🎉 Знайдено активні стріми:\n" + "\n".join(live_streams)
-            await telegram_app.bot.send_message(chat_id=TELEGRAM_CHANNEL, text=stream_message)
-            await query.message.reply_text("Стріми знайдено! Я надіслав посилання в канал.")
+        if results:
+            message = "🎉 Знайдено стріми:\n" + "\n".join(results)
+            await telegram_app.bot.send_message(chat_id=TELEGRAM_CHANNEL, text=message)
+            await query.message.reply_text("Стріми знайдено! Надіслав у канал.")
         else:
-            await query.message.reply_text("Наразі немає активних стрімів.")
+            await query.message.reply_text("Немає активних стрімів.")
 
+# Add handlers
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CallbackQueryHandler(button))
 
-# --- FLASK ROUTES ---
-
-@app.route("/webhook", methods=["POST"])
+# Flask routes
+@flask_app.route("/webhook", methods=["POST"])
 async def webhook():
-    try:
-        body = request.get_json(force=True)
-        update = Update.de_json(body, telegram_app.bot)
-        await telegram_app.process_update(update)
-        return {"status": "ok"}, 200
-    except Exception as e:
-        print(f"Error processing webhook: {e}")
-        return {"error": str(e)}, 200
+    data = request.get_json(force=True)
+    update = Update.de_json(data, telegram_app.bot)
+    await telegram_app.process_update(update)
+    return {"status": "ok"}
 
-@app.route("/health", methods=["GET", "HEAD"])
-def health():
-    return {"status": "ok"}, 200
-
-@app.route("/", methods=["GET", "HEAD"])
+@flask_app.route("/", methods=["GET"])
 def root():
-    return {"status": "ok"}, 200
+    return {"status": "OK"}
 
-# --- RUN ---
+@flask_app.route("/health", methods=["GET"])
+def health():
+    return {"status": "OK"}
+
+# Start everything
 if __name__ == "__main__":
-    print("Starting Flask server...")
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+    import asyncio
+
+    async def run():
+        await telegram_app.initialize()
+        print("Telegram initialized")
+        flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
+    asyncio.run(run())
