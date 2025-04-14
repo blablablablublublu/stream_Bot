@@ -1,7 +1,6 @@
 import os
 import requests
 import json
-import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from flask import Flask, request
@@ -11,12 +10,14 @@ app = Flask(__name__)
 
 # Налаштування Telegram
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8041256909:AAGjruzEE61q_H4R5zAwpTf53Peit37lqEg")
-CHAT_ID = "@testbotika12"
 CHANNEL_ID = "UCcBeq64BydUvdA-kZsITNlg"  # YouTube Channel ID
 TIKTOK_USERNAME = "top_gamer_qq"
 
 # Ініціалізація Telegram Application
 telegram_app = Application.builder().token(BOT_TOKEN).build()
+
+# Ініціалізуємо Application
+telegram_app.initialize()
 
 # Перевірка YouTube
 async def check_youtube():
@@ -87,9 +88,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CallbackQueryHandler(button))
 
-# Webhook ендпоінт
+# Webhook ендпоінт (синхронний)
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     try:
         body = request.get_json()
         print(f"Received webhook request: {body}")
@@ -98,7 +99,8 @@ async def webhook():
 
         update = Update.de_json(body, telegram_app.bot)
         if update:
-            await telegram_app.process_update(update)
+            # Використовуємо run_async для асинхронної обробки
+            telegram_app.run_async(telegram_app.process_update(update))
             print("Update processed successfully")
         else:
             print("Invalid update data")
