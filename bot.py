@@ -12,6 +12,7 @@ app = Flask(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8041256909:AAGjruzEE61q_H4R5zAwpTf53Peit37lqEg")
 CHANNEL_ID = "UCcBeq64BydUvdA-kZsITNlg"  # YouTube Channel ID
 TIKTOK_USERNAME = "top_gamer_qq"
+TELEGRAM_CHANNEL = "@testbotika12"  # ID твого Telegram-каналу
 
 # Ініціалізація Telegram Application
 telegram_app = Application.builder().token(BOT_TOKEN).build()
@@ -54,11 +55,15 @@ async def check_tiktok():
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    welcome_message = (
+        "🎥 Привіт! Я бот для перевірки стрімів на YouTube та TikTok! 🚀\n"
+        "Натисни кнопку нижче, щоб дізнатися, чи є активні стріми:"
+    )
     keyboard = [
         [InlineKeyboardButton("Перевірити стріми", callback_data="check_streams")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Натисни кнопку, щоб перевірити стріми:", reply_markup=reply_markup)
+    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
 
 # Обробка натискання кнопки
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -80,8 +85,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Надсилаємо результат
         if live_streams:
-            await query.message.reply_text("Активні стріми:\n" + "\n".join(live_streams))
+            # Надсилаємо в Telegram-канал
+            stream_message = "🎉 Знайдено активні стріми:\n" + "\n".join(live_streams)
+            await telegram_app.bot.send_message(chat_id=TELEGRAM_CHANNEL, text=stream_message)
+            await query.message.reply_text("Стріми знайдено! Я надіслав посилання в канал: @testbotika12")
         else:
+            # Надсилаємо в приватний чат
             await query.message.reply_text("Наразі немає активних стрімів.")
 
 # Додаємо обробники
