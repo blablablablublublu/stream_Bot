@@ -88,9 +88,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 telegram_app.add_handler(CommandHandler("start", start))
 telegram_app.add_handler(CallbackQueryHandler(button))
 
-# Webhook ендпоінт (синхронний)
+# Webhook ендпоінт (асинхронний)
 @app.route('/webhook', methods=['POST'])
-def webhook():
+async def webhook():
     try:
         body = request.get_json()
         print(f"Received webhook request: {body}")
@@ -99,8 +99,7 @@ def webhook():
 
         update = Update.de_json(body, telegram_app.bot)
         if update:
-            # Використовуємо run_async для асинхронної обробки
-            telegram_app.run_async(telegram_app.process_update(update))
+            await telegram_app.process_update(update)
             print("Update processed successfully")
         else:
             print("Invalid update data")
@@ -113,6 +112,11 @@ def webhook():
 # Health check для UptimeRobot
 @app.route('/health', methods=['GET'])
 def health():
+    return {"status": "OK"}, 200
+
+# Додатковий ендпоінт для UptimeRobot (для кореня)
+@app.route('/', methods=['GET', 'HEAD'])
+def root():
     return {"status": "OK"}, 200
 
 # Запускаємо Flask
